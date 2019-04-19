@@ -30,6 +30,7 @@ class SpatialTransformLayer(tf.keras.layers.Layer):
 
     def call(self, inputs):
 
+        if inputs.dtype != tf.float32: inputs = tf.cast(inputs, dtype = tf.float32);
         affines = self.loc_model(inputs);
         results = self.affine_layer(inputs, affines);
         return results;
@@ -37,7 +38,13 @@ class SpatialTransformLayer(tf.keras.layers.Layer):
 if __name__ == "__main__":
 
     assert tf.executing_eagerly();
-    st = SpatialTransformLayer();
-    a = tf.constant(np.random.normal(size = (4,32,32,3)), dtype = tf.float32);
-    b = st(a);
+    (train_x, train_y),(test_x, test_y) = tf.keras.datasets.mnist.load_data();
+    img = train_x[0,...];
+    inputs = tf.expand_dims(tf.constant(img), axis = 0); # add batch
+    inputs = tf.expand_dims(inputs, axis = -1); # add channel
+    stl = SpatialTransformLayer();
+    outputs = stl(inputs);
+    import cv2;
+    cv2.imshow('output',outputs[0,...,0].numpy().astype('uint8'));
+    cv2.waitKey();
 
