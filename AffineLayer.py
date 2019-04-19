@@ -93,5 +93,5 @@ if __name__ == "__main__":
     for angle in range(0,360,10):
         affines = tf.expand_dims(tf.constant(cv2.getRotationMatrix2D((0,0), angle, 1), dtype = tf.float32), axis = 0);
         outputs = tf.cast(AffineLayer()(inputs,affines),dtype = tf.uint8);
-        cv2.imshow("rotated", outputs[0,...,0].numpy().astype('uint8'));
+        cv2.imshow("rotated", outputs[0,...,0].numpy());
         cv2.waitKey(50);

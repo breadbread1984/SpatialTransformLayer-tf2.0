@@ -43,8 +43,8 @@ if __name__ == "__main__":
     inputs = tf.expand_dims(tf.constant(img), axis = 0); # add batch
     inputs = tf.expand_dims(inputs, axis = -1); # add channel
     stl = SpatialTransformLayer();
-    outputs = stl(inputs);
+    outputs = tf.cast(stl(inputs), dtype = tf.uint8);
     import cv2;
-    cv2.imshow('output',outputs[0,...,0].numpy().astype('uint8'));
+    cv2.imshow('output',outputs[0,...,0].numpy());
     cv2.waitKey();
 
