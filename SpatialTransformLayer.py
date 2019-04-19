@@ -37,4 +37,7 @@ class SpatialTransformLayer(tf.keras.layers.Layer):
 if __name__ == "__main__":
 
     assert tf.executing_eagerly();
-    
+    st = SpatialTransformLayer();
+    a = tf.constant(np.random.normal(size = (4,32,32,3)), dtype = tf.float32);
+    b = st(a);
+
