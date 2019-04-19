@@ -69,10 +69,10 @@ class AffineLayer(tf.keras.layers.Layer):
         rb_value = tf.reshape(tf.gather(im_flat,tf.reshape(rb_index, shape = (-1,))), shape = (-1, output_shape[1] * output_shape[2], output_shape[3]));
         # calculate weights of four nearest coordinates
         # (lu|lb|ru|rb)_weight.shape = (batch_num, output_element_num,1)
-        lu_weight = tf.expand_dims((x - tf.cast(xl, dtype = tf.float32)) * (y - tf.cast(yu, dtype = tf.float32)), axis = -1);
-        lb_weight = tf.expand_dims((x - tf.cast(xl, dtype = tf.float32)) * (tf.cast(yb, dtype = tf.float32) - y), axis = -1);
-        ru_weight = tf.expand_dims((tf.cast(xr, dtype = tf.float32) - x) * (y - tf.cast(yu, dtype = tf.float32)), axis = -1);
-        rb_weight = tf.expand_dims((tf.cast(xr, dtype = tf.float32) - x) * (tf.cast(yb, dtype = tf.float32) - y), axis = -1);
+        lu_weight = tf.expand_dims(tf.math.exp(-(x - tf.cast(xl, dtype = tf.float32)) * (y - tf.cast(yu, dtype = tf.float32))), axis = -1);
+        lb_weight = tf.expand_dims(tf.math.exp(-(x - tf.cast(xl, dtype = tf.float32)) * (tf.cast(yb, dtype = tf.float32) - y)), axis = -1);
+        ru_weight = tf.expand_dims(tf.math.exp(-(tf.cast(xr, dtype = tf.float32) - x) * (y - tf.cast(yu, dtype = tf.float32))), axis = -1);
+        rb_weight = tf.expand_dims(tf.math.exp(-(tf.cast(xr, dtype = tf.float32) - x) * (tf.cast(yb, dtype = tf.float32) - y)), axis = -1);
         # weighted sum values of the four nearest coordinates
         # output.shape = (batch_num, output_element_num, channel_num)
         weighted_sum = (lu_weight * lu_value + lb_weight * lb_value + ru_weight * ru_value + rb_weight * rb_value);
