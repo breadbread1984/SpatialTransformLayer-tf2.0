@@ -10,12 +10,6 @@ class AffineLayer(tf.keras.layers.Layer):
         super(AffineLayer, self).__init__();
         self.downsample_factor = downsample_factor;
 
-    def compute_output_shape(self, input_shape):
-
-        # input_shape = (batch_size, height, width, channel)
-        shape = tf.TensorShape(input_shape).as_list();
-        return tf.TensorShape(shape[:1] + [int(d // self.downsample_factor) for d in shape[1:3]] + shape[3:]);
-
     def call(self, inputs, affines):
 
         # affine transform output grid to the input grid and extract intensity back to output
@@ -24,11 +18,10 @@ class AffineLayer(tf.keras.layers.Layer):
         assert inputs.shape[0] == affines.shape[0];
         
         if inputs.dtype != tf.float32: inputs = tf.cast(inputs, dtype = tf.float32);
-        input_shape = inputs.shape;
-        output_shape = self.compute_output_shape(inputs.shape);
+        input_shape = tf.shape(inputs);
         # meshgrid of normalized coordinates in output resolution: [x,y] = meshgrid(x,y)
-        x = tf.ones(shape = (output_shape[1], 1), dtype = tf.float32) * tf.reshape(tf.linspace(-1.,1.,output_shape[2]), shape = (1,output_shape[2]));
-        y = tf.ones(shape = (1, output_shape[2]), dtype = tf.float32) * tf.reshape(tf.linspace(-1.,1.,output_shape[1]), shape = (output_shape[1],1));
+        x = tf.ones(shape = (input_shape[1]//self.downsample_factor, 1), dtype = tf.float32) * tf.reshape(tf.linspace(-1.,1.,input_shape[2]//self.downsample_factor), shape = (1,input_shape[2]//self.downsample_factor));
+        y = tf.ones(shape = (1, input_shape[2]//self.downsample_factor), dtype = tf.float32) * tf.reshape(tf.linspace(-1.,1.,input_shape[1]//self.downsample_factor), shape = (input_shape[1]//self.downsample_factor,1));
         # homogeneous normalized coordinates of meshgrid
         # homogeneous.shape = (3, output_element_num)
         x_flat = tf.reshape(x,shape = (-1,));
@@ -37,7 +30,7 @@ class AffineLayer(tf.keras.layers.Layer):
         homogeneous = tf.stack([x_flat, y_flat, ones]);
         # affine transform the normalized coordinates
         # trans_xy.shape = (batch_num, 2, output_element_num)
-        trans_xy = tf.linalg.matmul(affines, tf.stack([homogeneous,] * input_shape[0], axis = 0));
+        trans_xy = tf.linalg.matmul(affines, tf.tile(tf.expand_dims(homogeneous, axis = 0), (input_shape[0], 1, 1)))
         # convert normalized coordinates to input coordinates
         # (x|y).shape = (batch_num, output_element_num)
         zero = tf.zeros(shape = (), dtype = tf.int32);
@@ -53,7 +46,7 @@ class AffineLayer(tf.keras.layers.Layer):
         yb = tf.clip_by_value(yu + 1, zero, max_y);
         # every row of tensor base is a row of start address of every batch of input image
         # base.shape = (batch_num, output_element_num)
-        base = tf.reshape(tf.range(inputs.shape[0], dtype = tf.int32) * input_shape[1] * input_shape[2], shape = (-1, 1)) * tf.ones(shape = (1, output_shape[1] * output_shape[2]), dtype = tf.int32);
+        base = tf.reshape(tf.range(input_shape[0], dtype = tf.int32) * input_shape[1] * input_shape[2], shape = (-1, 1)) * tf.ones(shape = (1, input_shape[1]//self.downsample_factor * input_shape[2]//self.downsample_factor), dtype = tf.int32);
         # four nearest coordinates on the input grid of every batch
         # (lu|lb|ru|rb)_index.shape = (batch_num, output_element_num)
         lu_index = base + yu * input_shape[2] + xl;
@@ -63,10 +56,10 @@ class AffineLayer(tf.keras.layers.Layer):
         # extract values of the four nearest coordinates on the input grid of every batch
         # (lu|lb|ru|rb)_value.shape = (batch_num, output_element_num, channel_num)
         im_flat = tf.reshape(inputs, shape = (-1, input_shape[3])); # im_flat.shape = (batch_num * output_element_num, channel_num)
-        lu_value = tf.reshape(tf.gather(im_flat,tf.reshape(lu_index, shape = (-1,))), shape = (-1, output_shape[1] * output_shape[2], output_shape[3]));
-        lb_value = tf.reshape(tf.gather(im_flat,tf.reshape(lb_index, shape = (-1,))), shape = (-1, output_shape[1] * output_shape[2], output_shape[3]));
-        ru_value = tf.reshape(tf.gather(im_flat,tf.reshape(ru_index, shape = (-1,))), shape = (-1, output_shape[1] * output_shape[2], output_shape[3]));
-        rb_value = tf.reshape(tf.gather(im_flat,tf.reshape(rb_index, shape = (-1,))), shape = (-1, output_shape[1] * output_shape[2], output_shape[3]));
+        lu_value = tf.reshape(tf.gather(im_flat,tf.reshape(lu_index, shape = (-1,))), shape = (-1, input_shape[1]//self.downsample_factor * input_shape[2]//self.downsample_factor, input_shape[3]));
+        lb_value = tf.reshape(tf.gather(im_flat,tf.reshape(lb_index, shape = (-1,))), shape = (-1, input_shape[1]//self.downsample_factor * input_shape[2]//self.downsample_factor, input_shape[3]));
+        ru_value = tf.reshape(tf.gather(im_flat,tf.reshape(ru_index, shape = (-1,))), shape = (-1, input_shape[1]//self.downsample_factor * input_shape[2]//self.downsample_factor, input_shape[3]));
+        rb_value = tf.reshape(tf.gather(im_flat,tf.reshape(rb_index, shape = (-1,))), shape = (-1, input_shape[1]//self.downsample_factor * input_shape[2]//self.downsample_factor, input_shape[3]));
         # calculate weights of four nearest coordinates
         # (lu|lb|ru|rb)_weight.shape = (batch_num, output_element_num,1)
         lu_weight = tf.expand_dims(tf.math.exp(-(x - tf.cast(xl, dtype = tf.float32)) * (y - tf.cast(yu, dtype = tf.float32))), axis = -1);
@@ -79,7 +72,7 @@ class AffineLayer(tf.keras.layers.Layer):
         weight_sum = (lu_weight + lb_weight + ru_weight + rb_weight);
         output = weighted_sum / weight_sum;
         # reshape output
-        output = tf.reshape(output, shape = output_shape);
+        output = tf.keras.layers.Reshape((input_shape[1] // self.downsample_factor, input_shape[2] // self.downsample_factor, input_shape[3]))(output);
         return output;
 
 if __name__ == "__main__":
